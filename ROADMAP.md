@@ -6,7 +6,7 @@
 
 ## Steps
 
-### **Step 0 – Project Structure Init**
+### **Step 0 – Project Structure Init** ✅
 
 1. **Tests** – _none_ (scaffolding only)
 
