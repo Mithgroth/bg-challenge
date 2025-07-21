@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="TUnit" Version="0.25.21" />
+    <PackageReference Include="Bogus" Version="35.6.2" />
   </ItemGroup>
 
   <ItemGroup>
