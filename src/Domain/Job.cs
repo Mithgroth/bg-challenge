@@ -8,14 +8,14 @@ public class Job
     public string Type { get; private set; }
     public string ImgUrl { get; private set; }
     public JobStatus Status { get; private set; }
-
-    public string ObjectPath => ExtractObjectPathFromUrl(ImgUrl);
+    public string ResultFile { get; private set; }
 
     // Parameterless constructor for EF
     private Job()
     {
         Type = string.Empty;
         ImgUrl = string.Empty;
+        ResultFile = string.Empty;
         Status = JobStatus.Unknown;
     }
 
@@ -40,6 +40,7 @@ public class Job
         JobId = jobId;
         Type = type;
         ImgUrl = imgUrl;
+        ResultFile = ExtractResultFileFromUrl(imgUrl);
         Status = status;
     }
 
@@ -60,7 +61,7 @@ public class Job
         Status = status;
     }
 
-    private static string ExtractObjectPathFromUrl(string url)
+    private static string ExtractResultFileFromUrl(string url)
     {
         var uri = new Uri(url);
         var segments = uri.AbsolutePath.Split('/');

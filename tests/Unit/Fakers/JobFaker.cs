@@ -22,7 +22,7 @@ public static class JobFaker
         }
     }
 
-    public static IEnumerable<(string ImgUrl, string ExpectedPath)> ObjectPathTestData()
+    public static IEnumerable<(string ImgUrl, string ExpectedResultFile)> ResultFileTestData()
     {
         var imageExtensions = new[] { "png", "jpg", "jpeg", "webp" };
         

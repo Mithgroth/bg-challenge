@@ -47,15 +47,15 @@ public class Jobs
     }
 
     [Test]
-    [MethodDataSource(typeof(JobFaker), nameof(JobFaker.ObjectPathTestData))]
-    public async Task ExtractsObjectPathFromUrl(string imgUrl, string expectedObjectPath)
+    [MethodDataSource(typeof(JobFaker), nameof(JobFaker.ResultFileTestData))]
+    public async Task ExtractsResultFileFromUrl(string imgUrl, string expectedResultFile)
     {
         var jobId = JobFaker.GenerateValidJobId();
         var type = JobFaker.GenerateValidType();
         
         var job = new Job(jobId, type, imgUrl);
 
-        await Assert.That(job.ObjectPath).IsEqualTo(expectedObjectPath);
+        await Assert.That(job.ResultFile).IsEqualTo(expectedResultFile);
     }
 
     [Test]
@@ -101,6 +101,6 @@ public class Jobs
         var job1 = new Job(jobId, type, imgUrl1);
         var job2 = new Job(jobId, type, imgUrl2);
         
-        await Assert.That(job1.ObjectPath).IsEqualTo(job2.ObjectPath);
+        await Assert.That(job1.ResultFile).IsEqualTo(job2.ResultFile);
     }
 }
