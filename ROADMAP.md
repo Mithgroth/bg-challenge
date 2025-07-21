@@ -47,20 +47,21 @@
 
 ---
 
-### **Step 1 – Domain Objects & Database**
+### **Step 1 – Domain Objects & Database** ✅
 
 1. **Tests**  
    * Unit (`Job`): `CanParseFromJson`, `ValidatesJobId`, `ValidatesImgUrl`
-   * Unit (`Job`): `ExtractsObjectPathFromUrl`, `HandlesUrlWithoutQueryString`, `HandlesComplexQueryParams`
-   * Unit (`Result`): `CanExtractObjectPath`, `DetectsDuplicatePath`, `TracksJobStatus`
+   * Unit (`Job`): `ExtractsResultFileFromUrl`, `HandlesUrlWithoutQueryString`, `HandlesComplexQueryParams`
+   * Unit (`Job`): `HasDefaultUnknownStatus`, `TracksJobStatus`, `DetectsDuplicatePath`
 
 2. **Implementation**  
-   * **Domain** – `Job` entity (rich domain model) with `JobId` (Guid), `Type`, `ImgUrl` properties.  
-   * **Domain** – `Job.ObjectPath` property that automatically extracts path from `ImgUrl` (strips query string at `?`).  
-   * **Domain** – `Result` entity with status tracking (`Queued`, `Processing`, `Completed`, `Failed`, `Canceled`).  
-   * **Api** – Add EF Core, create `AppDbContext` with `Jobs` and `Results` DbSets.  
-   * EF migration for `jobs` and `results` tables with `UNIQUE(job_id, object_path)` constraint.  
-   * **CRITICAL**: `Job.ObjectPath` must internally handle URL parsing to extract clean path (e.g., `results_2.png` from `https://...results_2.png?X-Amz-Expires=...`) to avoid signature mismatches.  
+   * **Domain** – `Job` entity (rich domain model) with `JobId` (Guid), `Type`, `ImgUrl`, `Status`, `ResultFile` properties.  
+   * **Domain** – `Job.ResultFile` property that automatically extracts path from `ImgUrl` (strips query string at `?`).  
+   * **Domain** – `JobStatus` enum with status tracking (`Unknown`, `Queued`, `Processing`, `Completed`, `Failed`, `Canceled`).  
+   * **Api** – Add EF Core with Aspire PostgreSQL integration, create `AppDbContext` with `Jobs` DbSet.  
+   * EF migration for `jobs` table with `UNIQUE(job_id, result_file)` constraint.  
+   * **CRITICAL**: `Job.ResultFile` must internally handle URL parsing to extract clean path (e.g., `results_2.png` from `https://...results_2.png?X-Amz-Expires=...`) to avoid signature mismatches.  
+   * **Development**: Auto-migration on startup for seamless F5 developer experience.  
    * Reference Job structure:
 
      ```json
@@ -79,12 +80,11 @@
    * `CanAccept`  
    * `RejectsArrays`  
    * `IsIdempotent`  
-   * Unit (`Result`): `CanExtractObjectPath`, `DetectsDuplicatePath`
+   * Unit (`Job`): `CanExtractResultFile`, `DetectsDuplicatePath`
 
 2. **Implementation**  
-   * **Domain** – `Result` entity + factory stripping query-string.  
    * **Api** – `EnqueueRequest` record; filters `SingleObjectGuard`, `SignHereFilter`.  
-   * EF migration for `results` table with `UNIQUE(job_id, object_path)`.  
+   * Use existing `Job` entity with status tracking.  
    * Return **409 Conflict** on duplicate; insert row then `NOTIFY jobs_channel, id`.
 
 ---
