@@ -7,10 +7,19 @@ public class Job
     public Guid JobId { get; private set; }
     public string Type { get; private set; }
     public string ImgUrl { get; private set; }
+    public JobStatus Status { get; private set; }
 
     public string ObjectPath => ExtractObjectPathFromUrl(ImgUrl);
 
-    public Job(Guid jobId, string type, string imgUrl)
+    // Parameterless constructor for EF
+    private Job()
+    {
+        Type = string.Empty;
+        ImgUrl = string.Empty;
+        Status = JobStatus.Unknown;
+    }
+
+    public Job(Guid jobId, string type, string imgUrl, JobStatus status = JobStatus.Unknown)
     {
         if (jobId == Guid.Empty)
         {
@@ -31,6 +40,7 @@ public class Job
         JobId = jobId;
         Type = type;
         ImgUrl = imgUrl;
+        Status = status;
     }
 
     public static Job FromJson(string json)
@@ -43,6 +53,11 @@ public class Job
         var imgUrl = root.GetProperty("imgUrl").GetString()!;
 
         return new Job(jobId, type, imgUrl);
+    }
+
+    public void SetStatus(JobStatus status)
+    {
+        Status = status;
     }
 
     private static string ExtractObjectPathFromUrl(string url)

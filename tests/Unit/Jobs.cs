@@ -57,4 +57,50 @@ public class Jobs
 
         await Assert.That(job.ObjectPath).IsEqualTo(expectedObjectPath);
     }
+
+    [Test]
+    public async Task HasDefaultUnknownStatus()
+    {
+        var jobId = JobFaker.GenerateValidJobId();
+        var type = JobFaker.GenerateValidType();
+        var imgUrl = JobFaker.GenerateValidUrl();
+        
+        var job = new Job(jobId, type, imgUrl);
+        
+        await Assert.That(job.Status).IsEqualTo(JobStatus.Unknown);
+    }
+
+    [Test]
+    public async Task TracksJobStatus()
+    {
+        var jobId = JobFaker.GenerateValidJobId();
+        var type = JobFaker.GenerateValidType();
+        var imgUrl = JobFaker.GenerateValidUrl();
+        var job = new Job(jobId, type, imgUrl);
+
+        await Assert.That(job.Status).IsEqualTo(JobStatus.Unknown);
+
+        job.SetStatus(JobStatus.Queued);
+        await Assert.That(job.Status).IsEqualTo(JobStatus.Queued);
+
+        job.SetStatus(JobStatus.Processing);
+        await Assert.That(job.Status).IsEqualTo(JobStatus.Processing);
+
+        job.SetStatus(JobStatus.Completed);
+        await Assert.That(job.Status).IsEqualTo(JobStatus.Completed);
+    }
+
+    [Test]
+    public async Task DetectsDuplicatePath()
+    {
+        var jobId = JobFaker.GenerateValidJobId();
+        var type = JobFaker.GenerateValidType();
+        var imgUrl1 = "https://example.com/path/file.png?signature=abc123";
+        var imgUrl2 = "https://example.com/path/file.png?signature=xyz789";
+        
+        var job1 = new Job(jobId, type, imgUrl1);
+        var job2 = new Job(jobId, type, imgUrl2);
+        
+        await Assert.That(job1.ObjectPath).IsEqualTo(job2.ObjectPath);
+    }
 }
