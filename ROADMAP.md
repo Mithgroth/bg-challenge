@@ -47,25 +47,29 @@
 
 ---
 
-### **Step 1 – Bootstrap**
+### **Step 1 – Domain Objects & Database**
 
 1. **Tests**  
-   * `Health.CanRespond` (integration)
+   * Unit (`Job`): `CanParseFromJson`, `ValidatesJobId`, `ValidatesImgUrl`
+   * Unit (`Job`): `ExtractsObjectPathFromUrl`, `HandlesUrlWithoutQueryString`, `HandlesComplexQueryParams`
+   * Unit (`Result`): `CanExtractObjectPath`, `DetectsDuplicatePath`, `TracksJobStatus`
 
 2. **Implementation**  
-   * In **Api** add minimal `/health` endpoint.  
-   * Configure containers in **AppHost**:
+   * **Domain** – `Job` entity (rich domain model) with `JobId` (Guid), `Type`, `ImgUrl` properties.  
+   * **Domain** – `Job.ObjectPath` property that automatically extracts path from `ImgUrl` (strips query string at `?`).  
+   * **Domain** – `Result` entity with status tracking (`Queued`, `Processing`, `Completed`, `Failed`, `Canceled`).  
+   * **Api** – Add EF Core, create `AppDbContext` with `Jobs` and `Results` DbSets.  
+   * EF migration for `jobs` and `results` tables with `UNIQUE(job_id, object_path)` constraint.  
+   * **CRITICAL**: `Job.ObjectPath` must internally handle URL parsing to extract clean path (e.g., `results_2.png` from `https://...results_2.png?X-Amz-Expires=...`) to avoid signature mismatches.  
+   * Reference Job structure:
 
-     ```csharp
-     builder.AddPostgres("db", "postgres:latest")
-            .WithVolumeMount("pgdata", "/var/lib/postgresql/data");
-
-     builder.AddContainer("localstack", "localstack/localstack:latest")
-            .WithEnvironment("SERVICES", "s3")
-            .WithPortBinding(4566, 4566);
+     ```json
+     {
+       "jobId": "0197718c-2355-725e-a8e3-7f8dd78c7ff0", 
+       "type": "tryon",
+       "imgUrl": "https://example.com/path/results_2.png?X-Amz-Expires=..."
+     }
      ```
-
-   * Create `TestHostFixture` in `tests/Integration` to spin up AppHost once per test collection; make test green.
 
 ---
 
