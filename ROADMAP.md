@@ -74,16 +74,15 @@
 
 ---
 
-### **Step 2 – `/results/enqueue`**
+### **Step 2 – `/results/enqueue`** ✅
 
 1. **Tests** (`Enqueue`)  
    * `CanAccept`  
-   * `RejectsArrays`  
    * `IsIdempotent`  
    * Unit (`Job`): `CanExtractResultFile`, `DetectsDuplicatePath`
 
 2. **Implementation**  
-   * **Api** – `EnqueueRequest` record; filters `SingleObjectGuard`, `SignHereFilter`.  
+   * **Api** – `EnqueueRequest` record; filters `ImageFileGuard`.  
    * Use existing `Job` entity with status tracking.  
    * Return **409 Conflict** on duplicate; insert row then `NOTIFY jobs_channel, id`.
 
