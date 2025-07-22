@@ -37,6 +37,12 @@ public class AppDbContext : DbContext
             entity.Property(j => j.Status)
                 .IsRequired()
                 .HasConversion<string>();
+            
+            entity.Property(j => j.CreatedAt)
+                .IsRequired();
+            
+            entity.Property(j => j.UpdatedAt)
+                .IsRequired();
 
             entity.HasIndex(j => new { j.JobId, j.ResultFile })
                 .IsUnique()

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 
 namespace Domain;
@@ -9,6 +10,9 @@ public class Job
     public string ImgUrl { get; private set; }
     public JobStatus Status { get; private set; }
     public string ResultFile { get; private set; }
+    public long CreatedAt { get; private set; }
+    public long UpdatedAt { get; private set; }
+    public long? LockKey { get; private set; }
 
     // Parameterless constructor for EF
     private Job()
@@ -25,13 +29,13 @@ public class Job
         {
             throw new ArgumentException("JobId cannot be empty", nameof(jobId));
         }
-        
+
         if (string.IsNullOrWhiteSpace(imgUrl))
         {
             throw new ArgumentException("ImgUrl cannot be empty", nameof(imgUrl));
         }
-        
-        if (!Uri.TryCreate(imgUrl, UriKind.Absolute, out var uri) || 
+
+        if (!Uri.TryCreate(imgUrl, UriKind.Absolute, out var uri) ||
             (uri.Scheme != "http" && uri.Scheme != "https"))
         {
             throw new ArgumentException("ImgUrl must be a valid HTTP or HTTPS URL", nameof(imgUrl));
@@ -42,6 +46,8 @@ public class Job
         ImgUrl = imgUrl;
         ResultFile = ExtractResultFileFromUrl(imgUrl);
         Status = status;
+        CreatedAt = Stopwatch.GetTimestamp();
+        UpdatedAt = Stopwatch.GetTimestamp();
     }
 
     public static Job FromJson(string json)
@@ -59,6 +65,13 @@ public class Job
     public void SetStatus(JobStatus status)
     {
         Status = status;
+        UpdatedAt = Stopwatch.GetTimestamp();
+    }
+
+    public void SetLockKey(long? lockKey)
+    {
+        LockKey = lockKey;
+        UpdatedAt = Stopwatch.GetTimestamp();
     }
 
     private static string ExtractResultFileFromUrl(string url)
