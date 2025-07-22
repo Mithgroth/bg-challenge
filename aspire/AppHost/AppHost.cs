@@ -11,7 +11,7 @@ var localstack = builder.AddContainer("localstack", "docker.io/localstack/locals
        .WithEnvironment("SERVICES", "s3")
        .WithHttpEndpoint(port: 4566, targetPort: 4566);
 
-builder.AddProject<Projects.Api>("api")
+var api = builder.AddProject<Projects.Api>("api")
     .WithReference(db)
     .WaitFor(postgres)
     .WaitFor(localstack);
@@ -19,6 +19,7 @@ builder.AddProject<Projects.Api>("api")
 builder.AddProject<Projects.Worker>("worker")
     .WithReference(db)
     .WaitFor(postgres)
-    .WaitFor(localstack);
+    .WaitFor(localstack)
+    .WaitFor(api);
 
 builder.Build().Run();
