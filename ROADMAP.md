@@ -88,18 +88,80 @@
 
 ---
 
-### **Step 3 – Worker Processing**
+### **Step 3 – Worker Processing + Advisory Lock** ✅
 
-1. **Tests** (`DownloadWorker`)  
-   * `CanCompleteOnNotify`  
+1. **Tests** (`DownloadWorker`)
+   * `CanCompleteOnNotify`
    * `FailsOnInvalidHead`
+   * `RescuesOrphanedProcessingJob`   ← new
+   * `LeavesLiveProcessingJobAlone`   ← new
 
-2. **Implementation**  
-   * **Worker**: BackgroundService with dedicated `NpgsqlConnection` → `LISTEN jobs_channel`.  
-   * Query rows via `SELECT … FOR UPDATE SKIP LOCKED LIMIT n`.  
-   * `HEAD` validation (`200`, `image/*`, ≤ 20 MB).  
-   * Stream to LocalStack S3; update status.  
-   * Retry × 3 (1 s → 4 s → 8 s).
+2. **Implementation**
+
+   * **Schema**
+     * Add nullable `LockKey bigint` column to `Jobs` via EF migration.
+     * Keep PascalCase in the model (`LockKey`).
+
+   * **Worker startup**
+     * Generate `workerSalt` once (random 32‑bit hex).
+     * **Rescue pass**
+
+       ```sql
+       SELECT "JobId","LockKey"
+       FROM "Jobs"
+       WHERE "Status" = 'Processing';
+       ```
+
+       For each row run `pg_try_advisory_lock(:LockKey)`  
+         `true`  ⇒ job is orphaned → `UPDATE` back to `Queued`, then `pg_advisory_unlock`  
+         `false` ⇒ another worker owns it → leave untouched
+
+   * **Claim query** (inside one transaction)
+
+     ```sql
+     WITH next AS (
+       SELECT "JobId","ResultFile"
+       FROM "Jobs"
+       WHERE "Status" = 'Queued'
+       ORDER BY "CreatedAt"
+       LIMIT 1
+       FOR UPDATE SKIP LOCKED
+     )
+     UPDATE "Jobs"
+     SET "Status"  = 'Processing',
+         "LockKey" = hashtextextended(
+             (next."JobId"::text || next."ResultFile" || @salt), 0
+           )::bigint,
+         "UpdatedAt" = extract(epoch from now())::bigint
+     FROM next
+     WHERE "Jobs"."JobId" = next."JobId"
+     RETURNING *;
+     ```
+
+     * Commit, then on the same Npgsql connection  
+       `SELECT pg_advisory_lock(:LockKey);`
+
+   * **Processing loop**
+     * Validate via `HEAD`, stream to S3, retry × 3 (1s → 4s → 8s).
+
+   * **Finish job**
+
+     ```sql
+     BEGIN;
+       UPDATE "Jobs"
+       SET "Status" = 'Completed',
+           "UpdatedAt" = extract(epoch from now())::bigint,
+           "LockKey" = NULL;
+       SELECT pg_advisory_unlock(:LockKey);
+     COMMIT;
+     ```
+
+   * **Crash scenario**  
+     Connection drops → advisory lock released, `LockKey` stays in row → next worker rescues with the startup pass.
+
+   * **LISTEN / NOTIFY**
+     * Worker keeps its connection open with `LISTEN jobs_channel`.
+     * On `NOTIFY` run the rescue pass first, then the claim query.
 
 ---
 
