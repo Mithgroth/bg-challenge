@@ -27,6 +27,12 @@ public static class Endpoint
 
             context.Jobs.Add(job);
             await context.SaveChangesAsync();
+            
+            if (context.Database.IsRelational())
+            {
+                var sql = $"NOTIFY jobs_channel, '{job.JobId}'";
+                await context.Database.ExecuteSqlRawAsync(sql);
+            }
 
             return Results.Accepted(
                 $"/results/{job.JobId}",
