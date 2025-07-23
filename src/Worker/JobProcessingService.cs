@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Util;
@@ -70,11 +71,11 @@ public class JobProcessingService(
                     // Job is orphaned - reset it to Queued and release the lock
                     const string rescueSql = """
                                              UPDATE "Jobs"
-                                             SET "Status" = 'Queued', "LockKey" = NULL, "UpdatedAt" = extract(epoch from now())::bigint
+                                             SET "Status" = 'Queued', "LockKey" = NULL, "UpdatedAt" = @updatedAt
                                              WHERE "JobId" = @jobId
                                              """;
 
-                    await connection.ExecuteAsync(rescueSql, new { jobId });
+                    await connection.ExecuteAsync(rescueSql, new { jobId, updatedAt = Stopwatch.GetTimestamp() });
 
                     // Release the advisory lock we just acquired
                     var unlockSql = "SELECT pg_advisory_unlock(@lockKey)";
@@ -127,13 +128,13 @@ public class JobProcessingService(
                                         "LockKey" = hashtextextended(
                                             (next."JobId"::text || next."ResultFile" || @salt), 0
                                           )::bigint,
-                                        "UpdatedAt" = extract(epoch from now())::bigint
+                                        "UpdatedAt" = @updatedAt
                                     FROM next
                                     WHERE "Jobs"."JobId" = next."JobId"
                                     RETURNING "Jobs"."JobId", "Jobs"."Type", "Jobs"."ImgUrl", "Jobs"."Status", "Jobs"."ResultFile", "Jobs"."LockKey", "Jobs"."CreatedAt", "Jobs"."UpdatedAt"
                                     """;
 
-            var job = await connection.QuerySingleOrDefaultAsync<Job>(claimSql, new { salt = _workerSalt },
+            var job = await connection.QuerySingleOrDefaultAsync<Job>(claimSql, new { salt = _workerSalt, updatedAt = Stopwatch.GetTimestamp() },
                 transaction);
 
             if (job == null)
@@ -200,7 +201,7 @@ public class JobProcessingService(
             const string completeSql = """
                                        UPDATE "Jobs"
                                        SET "Status" = @status,
-                                           "UpdatedAt" = extract(epoch from now())::bigint,
+                                           "UpdatedAt" = @updatedAt,
                                            "LockKey" = NULL
                                        WHERE "JobId" = @jobId AND "ResultFile" = @resultFile
                                        """;
@@ -209,7 +210,8 @@ public class JobProcessingService(
             {
                 status = finalStatus.ToString(),
                 jobId = job.JobId,
-                resultFile = job.ResultFile
+                resultFile = job.ResultFile,
+                updatedAt = Stopwatch.GetTimestamp()
             }, transaction);
 
             // Release advisory lock if we have one
