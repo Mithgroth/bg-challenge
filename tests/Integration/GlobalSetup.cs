@@ -1,5 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
-using Api.Data;
+using Api.Common;
 
 [assembly: Retry(3)]
 [assembly: ExcludeFromCodeCoverage]

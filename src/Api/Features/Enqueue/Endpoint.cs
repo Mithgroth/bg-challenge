@@ -1,5 +1,4 @@
 using Api.Common;
-using Api.Data;
 using Domain;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;

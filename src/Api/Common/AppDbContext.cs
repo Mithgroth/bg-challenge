@@ -1,7 +1,7 @@
 using Domain;
 using Microsoft.EntityFrameworkCore;
 
-namespace Api.Data;
+namespace Api.Common;
 
 public class AppDbContext : DbContext
 {
