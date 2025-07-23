@@ -6,7 +6,7 @@ public record JobResponse(
     Guid JobId,
     string Type,
     string ImgUrl,
-    JobStatus Status,
+    string Status,
     string ResultFile,
     long CreatedAt,
     long UpdatedAt,

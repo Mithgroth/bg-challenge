@@ -23,7 +23,7 @@ public static class Endpoint
             job.JobId,
             job.Type,
             job.ImgUrl,
-            job.Status,
+            job.Status.ToString(),
             job.ResultFile,
             job.CreatedAt,
             job.UpdatedAt,
