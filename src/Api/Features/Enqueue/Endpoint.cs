@@ -33,9 +33,16 @@ public static class Endpoint
                 await context.Database.ExecuteSqlRawAsync(sql);
             }
 
+            var response = new Response(
+                job.JobId,
+                job.Type,
+                job.ImgUrl,
+                job.Status.ToString(),
+                job.CreatedAt);
+
             return Results.Accepted(
                 $"/results/{job.JobId}",
-                job);
+                response);
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" })
         {
