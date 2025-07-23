@@ -27,7 +27,7 @@ public class Enqueue
         var request = new
         {
             jobId = Guid.NewGuid(),
-            type = "tryon",
+            type = "test",
             imgUrl = "https://memeshapes.com/cdn/shop/articles/rickastley_x1600.png?v=1712534757"
         };
 
