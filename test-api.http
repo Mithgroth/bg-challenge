@@ -1,0 +1,34 @@
+@baseUrl = https://localhost:7182
+
+### List all jobs
+GET {{baseUrl}}/results/list
+
+### Enqueue a job with random GUID
+POST {{baseUrl}}/results/enqueue
+Content-Type: application/json
+
+{
+  "jobId": "{{$uuid}}",
+  "type": "test",
+  "imgUrl": "https://upload.wikimedia.org/wikipedia/commons/4/4a/OzzyChangingHands02-20-2010.jpg"
+}
+
+### Enqueue a job with fixed GUID for idempotency check
+POST {{baseUrl}}/results/enqueue
+Content-Type: application/json
+
+{
+  "jobId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "type": "test", 
+  "imgUrl": "https://i.ytimg.com/vi/5EvvgJyW8Vw/hqdefault.jpg"
+}
+
+### Enqueue a job with invalid image
+POST {{baseUrl}}/results/enqueue
+Content-Type: application/json
+
+{
+  "jobId": "{{$uuid}}",
+  "type": "test",
+  "imgUrl": "https://videos.pexels.com/video-files/2616637/2616637-hd_1920_1080_30fps.mp4"
+}

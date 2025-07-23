@@ -8,6 +8,10 @@
     <Project Path="aspire/AppHost/AppHost.csproj" />
     <Project Path="aspire/ServiceDefaults/ServiceDefaults.csproj" />
   </Folder>
+  <Folder Name="/SolutionFolder/">
+    <File Path="test-api.http" />
+    <File Path="README.md" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/Api/Api.csproj" />
     <Project Path="src/Domain/Domain.csproj" />
