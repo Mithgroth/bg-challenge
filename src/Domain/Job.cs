@@ -74,6 +74,17 @@ public class Job
         UpdatedAt = Stopwatch.GetTimestamp();
     }
 
+    public long? GetDurationMs()
+    {
+        if (Status == JobStatus.Completed || Status == JobStatus.Failed)
+        {
+            var duration = UpdatedAt - CreatedAt;
+            return (long)(duration / (double)Stopwatch.Frequency * 1000);
+        }
+        
+        return null;
+    }
+
     private static string ExtractResultFileFromUrl(string url)
     {
         var uri = new Uri(url);

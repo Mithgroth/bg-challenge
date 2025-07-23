@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Api.Common;
 using Api.Features.Enqueue;
+using Api.Features.List;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -25,6 +26,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.MapEnqueueEndpoint();
+app.MapListEndpoint();
 
 app.Run();
 
