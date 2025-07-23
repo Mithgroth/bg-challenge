@@ -167,6 +167,9 @@ public class JobProcessingService(
         {
             logger.LogInformation("Processing job {JobId}", job.JobId);
 
+            // Add delay to simulate processing time
+            await Task.Delay(5000, cancellationToken);
+
             var (isValid, error) = await ImageValidation.ValidateImageAsync(job.ImgUrl, httpClient, cancellationToken);
             if (!isValid)
             {
