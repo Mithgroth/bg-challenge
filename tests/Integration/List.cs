@@ -1,6 +1,6 @@
-using System.Text.Json;
-using Api.Common;
-using Domain;
+using System.Net.Http.Json;
+using Api.Features.List;
+using Aspire.Hosting.Testing;
 
 namespace Integration;
 
@@ -12,7 +12,7 @@ public class List
     public void Setup()
     {
         HttpClient?.Dispose();
-        HttpClient = TestContext.WebAppFactory!.CreateClient();
+        HttpClient = AspireTestFactory.App!.CreateHttpClient("api");
     }
 
     [After(Test)]
@@ -23,55 +23,61 @@ public class List
     }
 
     [Test]
-    public async Task ReturnsEmptyArrayWhenNoJobs()
+    public async Task ReturnsArrayFormat()
     {
-        // Arrange - clear database 
-        await using var context = new AppDbContext(WebAppFactory.SharedDbOptions);
-        await context.Database.EnsureCreatedAsync();
-        
-        // Clear any existing data
-        context.Jobs.RemoveRange(context.Jobs);
-        await context.SaveChangesAsync();
-
         // Act
         var response = await HttpClient!.GetAsync("/results/list");
         
         // Assert
         await Assert.That(response.IsSuccessStatusCode).IsTrue();
         
-        var content = await response.Content.ReadAsStringAsync();
-        var jobs = JsonSerializer.Deserialize<JsonElement>(content);
+        var jobs = await response.Content.ReadFromJsonAsync<List<JobResponse>>();
         
-        await Assert.That(jobs.ValueKind).IsEqualTo(JsonValueKind.Array);
-        await Assert.That(jobs.GetArrayLength()).IsEqualTo(0);
+        await Assert.That(jobs).IsNotNull();
+        await Assert.That(jobs).IsTypeOf<List<JobResponse>>();
     }
 
     [Test]
-    public async Task ReturnsJobsWithTimingFields()
+    public async Task ReturnsJobsWithCorrectFields()
     {
-        // Arrange - clear database and create jobs
-        await using var context = new AppDbContext(WebAppFactory.SharedDbOptions);
-        await context.Database.EnsureCreatedAsync();
-        
-        // Clear any existing data
-        context.Jobs.RemoveRange(context.Jobs);
-        await context.SaveChangesAsync();
-        
-        var job1 = new Job(Guid.NewGuid(), "test", "https://ih1.redbubble.net/image.724412595.1147/tst,small,845x845-pad,1000x1000,f8f8f8.u2.jpg");
-        var job2 = new Job(Guid.NewGuid(), "test", "https://memeshapes.com/cdn/shop/articles/rickastley_x1600.png?v=1712534757");
-        context.Jobs.AddRange(job1, job2);
-        await context.SaveChangesAsync();
+        // Arrange - enqueue a job first
+        var jobId = Guid.NewGuid();
+        var enqueueRequest = new
+        {
+            jobId = jobId,
+            type = "test",
+            imgUrl = "https://memeshapes.com/cdn/shop/articles/rickastley_x1600.png?v=1712534757"
+        };
+
+        await HttpClient!.PostAsJsonAsync("/results/enqueue", enqueueRequest);
 
         // Act
+        await Task.Delay(10000);
         var response = await HttpClient!.GetAsync("/results/list");
         
         // Assert  
         await Assert.That(response.IsSuccessStatusCode).IsTrue();
         
-        var content = await response.Content.ReadAsStringAsync();
-        var jobs = JsonSerializer.Deserialize<JsonElement>(content);
+        var jobs = await response.Content.ReadFromJsonAsync<List<JobResponse>>();
         
-        await Assert.That(jobs.ValueKind).IsEqualTo(JsonValueKind.Array);
-        await Assert.That(jobs.GetArrayLength()).IsEqualTo(2);
+        await Assert.That(jobs).IsNotNull();
+        await Assert.That(jobs).IsTypeOf<List<JobResponse>>();
+        
+        // Find our job
+        var job = jobs!.FirstOrDefault(j => j.JobId == jobId);
+        await Assert.That(job).IsNotNull();
+        
+        // Verify required fields
+        await Assert.That(job!.JobId).IsEqualTo(jobId);
+        await Assert.That(job.Type).IsNotNull();
+        await Assert.That(job.ImgUrl).IsNotNull();
+        await Assert.That(job.Status).IsNotNull();
+        await Assert.That(job.ResultFile).IsNotNull();
+        await Assert.That(job.CreatedAt).IsGreaterThan(0L);
+        await Assert.That(job.UpdatedAt).IsGreaterThan(0L);
+        await Assert.That(job.DurationMs).IsNotNull();
+        
+        // Verify status is string
+        await Assert.That(job.Status).IsTypeOf<string>();
     }
 }

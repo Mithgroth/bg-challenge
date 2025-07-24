@@ -1,5 +1,4 @@
 using System.Diagnostics.CodeAnalysis;
-using Api.Common;
 
 [assembly: Retry(3)]
 [assembly: ExcludeFromCodeCoverage]
@@ -8,7 +7,7 @@ namespace Integration;
 
 public static class TestContext
 {
-    public static WebAppFactory? WebAppFactory { get; set; }
+    public static AspireTestFactory? AspireTestFactory { get; set; }
 }
 
 public class GlobalHooks
@@ -16,27 +15,15 @@ public class GlobalHooks
     [Before(TestSession)]
     public static async Task SetUp()
     {
-        Console.WriteLine(@"Or you can define methods that do stuff before...");
-        TestContext.WebAppFactory = new WebAppFactory();
-        await TestContext.WebAppFactory.InitializeAsync();
-    }
-
-    [Before(Test)]
-    public async Task EnsureDatabaseCreated()
-    {
-        // Ensure database is created for each test
-        // Create context directly using the shared options
-        await using var context = new AppDbContext(WebAppFactory.SharedDbOptions);
-        await context.Database.EnsureCreatedAsync();
+        Console.WriteLine(@"Starting Aspire application for integration tests...");
+        TestContext.AspireTestFactory = new AspireTestFactory();
+        await TestContext.AspireTestFactory.InitializeAsync();
     }
 
     [After(TestSession)]
     public static async Task CleanUp()
     {
-        Console.WriteLine(@"...and after!");
-        if (TestContext.WebAppFactory != null)
-        {
-            await TestContext.WebAppFactory.DisposeAsync();
-        }
+        Console.WriteLine(@"Stopping Aspire application...");
+        await AspireTestFactory.DisposeAsync();
     }
 }

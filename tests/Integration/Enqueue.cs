@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using Aspire.Hosting.Testing;
 
 namespace Integration;
 
@@ -11,7 +12,7 @@ public class Enqueue
     public void Setup()
     {
         HttpClient?.Dispose();
-        HttpClient = TestContext.WebAppFactory!.CreateClient();
+        HttpClient = AspireTestFactory.App!.CreateHttpClient("api");
     }
 
     [After(Test)]
