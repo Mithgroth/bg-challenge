@@ -6,20 +6,21 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.AddServiceDefaults();
 builder.AddNpgsqlDataSource("db");
 
-// Add S3 client for LocalStack
 builder.Services.AddSingleton<IAmazonS3>(provider =>
 {
+    var configuration = provider.GetRequiredService<IConfiguration>();
+    var localstackUrl = configuration["LOCALSTACK:URL"]
+                        ?? throw new InvalidOperationException("Missing LOCALSTACK:URL env var");
+    
     var config = new AmazonS3Config
     {
-        ServiceURL = "http://localhost:4566", // LocalStack endpoint
+        ServiceURL = localstackUrl,
         ForcePathStyle = true
     };
     return new AmazonS3Client("test", "test", config);
 });
 
-// Add HttpClient
 builder.Services.AddHttpClient();
-
 builder.Services.AddHostedService<JobProcessingService>();
 
 var host = builder.Build();

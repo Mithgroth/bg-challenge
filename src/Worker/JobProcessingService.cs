@@ -8,6 +8,8 @@ using Npgsql;
 
 namespace Worker;
 
+internal record JobClaim(Job Job, NpgsqlConnection Connection);
+
 public class JobProcessingService(
     NpgsqlDataSource dataSource,
     IAmazonS3 s3Client,
@@ -97,19 +99,26 @@ public class JobProcessingService(
     {
         while (true)
         {
-            var job = await ClaimNextJob(cancellationToken);
-            if (job == null)
+            var jobClaim = await ClaimNextJob(cancellationToken);
+            if (jobClaim == null)
             {
                 break;
             }
 
-            await ProcessJob(job, cancellationToken);
+            try
+            {
+                await ProcessJob(jobClaim, cancellationToken);
+            }
+            finally
+            {
+                await jobClaim.Connection.DisposeAsync();
+            }
         }
     }
 
-    private async Task<Job?> ClaimNextJob(CancellationToken cancellationToken)
+    private async Task<JobClaim?> ClaimNextJob(CancellationToken cancellationToken)
     {
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
         try
@@ -140,6 +149,7 @@ public class JobProcessingService(
             if (job == null)
             {
                 await transaction.RollbackAsync(cancellationToken);
+                await connection.DisposeAsync();
                 return null;
             }
 
@@ -152,51 +162,51 @@ public class JobProcessingService(
                 logger.LogInformation("Claimed job {JobId} with lock key {LockKey}", job.JobId, job.LockKey);
             }
 
-            return job;
+            return new JobClaim(job, connection);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error claiming next job");
             await transaction.RollbackAsync(cancellationToken);
+            await connection.DisposeAsync();
             return null;
         }
     }
 
-    private async Task ProcessJob(Job job, CancellationToken cancellationToken)
+    private async Task ProcessJob(JobClaim jobClaim, CancellationToken cancellationToken)
     {
         try
         {
-            logger.LogInformation("Processing job {JobId}", job.JobId);
+            logger.LogInformation("Processing job {JobId}", jobClaim.Job.JobId);
 
             // Add delay to simulate processing time
             await Task.Delay(5000, cancellationToken);
 
-            var (isValid, error) = await ImageValidation.ValidateImageAsync(job.ImgUrl, httpClient, cancellationToken);
+            var (isValid, error) = await ImageValidation.ValidateImageAsync(jobClaim.Job.ImgUrl, httpClient, cancellationToken);
             if (!isValid)
             {
-                logger.LogWarning("Image validation failed for job {JobId}: {Error}", job.JobId, error);
-                await CompleteJob(job, JobStatus.Failed, cancellationToken);
+                logger.LogWarning("Image validation failed for job {JobId}: {Error}", jobClaim.Job.JobId, error);
+                await CompleteJob(jobClaim, JobStatus.Failed, cancellationToken);
                 return;
             }
 
-            await DownloadAndUploadToS3(job, cancellationToken);
-            await CompleteJob(job, JobStatus.Completed, cancellationToken);
+            await DownloadAndUploadToS3(jobClaim.Job, cancellationToken);
+            await CompleteJob(jobClaim, JobStatus.Completed, cancellationToken);
 
-            logger.LogInformation("Successfully processed job {JobId}", job.JobId);
+            logger.LogInformation("Successfully processed job {JobId}", jobClaim.Job.JobId);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error processing job {JobId}", job.JobId);
-            await CompleteJob(job, JobStatus.Failed, cancellationToken);
+            logger.LogError(ex, "Error processing job {JobId}", jobClaim.Job.JobId);
+            await CompleteJob(jobClaim, JobStatus.Failed, cancellationToken);
         }
     }
 
-    private async Task CompleteJob(Job job, JobStatus finalStatus, CancellationToken cancellationToken)
+    private async Task CompleteJob(JobClaim jobClaim, JobStatus finalStatus, CancellationToken cancellationToken)
     {
         try
         {
-            await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-            await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+            await using var transaction = await jobClaim.Connection.BeginTransactionAsync(cancellationToken);
 
             const string completeSql = """
                                        UPDATE "Jobs"
@@ -206,30 +216,30 @@ public class JobProcessingService(
                                        WHERE "JobId" = @jobId AND "ResultFile" = @resultFile
                                        """;
 
-            await connection.ExecuteAsync(completeSql, new
+            await jobClaim.Connection.ExecuteAsync(completeSql, new
             {
                 status = finalStatus.ToString(),
-                jobId = job.JobId,
-                resultFile = job.ResultFile,
+                jobId = jobClaim.Job.JobId,
+                resultFile = jobClaim.Job.ResultFile,
                 updatedAt = Stopwatch.GetTimestamp()
             }, transaction);
 
             // Release advisory lock if we have one
-            if (job.LockKey.HasValue)
+            if (jobClaim.Job.LockKey.HasValue)
             {
                 var unlockSql = "SELECT pg_advisory_unlock(@lockKey)";
-                await connection.ExecuteAsync(unlockSql, new { lockKey = job.LockKey.Value }, transaction);
-                logger.LogInformation("Released advisory lock {LockKey} for job {JobId}", job.LockKey, job.JobId);
+                await jobClaim.Connection.ExecuteAsync(unlockSql, new { lockKey = jobClaim.Job.LockKey.Value }, transaction);
+                logger.LogInformation("Released advisory lock {LockKey} for job {JobId}", jobClaim.Job.LockKey, jobClaim.Job.JobId);
             }
 
             await transaction.CommitAsync(cancellationToken);
 
-            job.SetStatus(finalStatus);
-            job.SetLockKey(null);
+            jobClaim.Job.SetStatus(finalStatus);
+            jobClaim.Job.SetLockKey(null);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error completing job {JobId} with status {Status}", job.JobId, finalStatus);
+            logger.LogError(ex, "Error completing job {JobId} with status {Status}", jobClaim.Job.JobId, finalStatus);
             throw;
         }
     }

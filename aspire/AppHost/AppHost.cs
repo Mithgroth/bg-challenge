@@ -1,4 +1,4 @@
-using Aspire.Hosting;
+using Projects;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
@@ -9,15 +9,16 @@ var db = postgres.AddDatabase("db");
 
 var localstack = builder.AddContainer("localstack", "docker.io/localstack/localstack:latest")
        .WithEnvironment("SERVICES", "s3")
-       .WithHttpEndpoint(port: 4566, targetPort: 4566);
+       .WithHttpEndpoint(port: 4566, targetPort: 4566, name: "http");
 
-var api = builder.AddProject<Projects.Api>("api")
+var api = builder.AddProject<Api>("api")
     .WithReference(db)
     .WaitFor(postgres)
     .WaitFor(localstack);
 
-builder.AddProject<Projects.Worker>("worker")
+builder.AddProject<Worker>("worker")
     .WithReference(db)
+    .WithEnvironment("LOCALSTACK:URL", localstack.GetEndpoint("http"))
     .WaitFor(postgres)
     .WaitFor(localstack)
     .WaitFor(api);
