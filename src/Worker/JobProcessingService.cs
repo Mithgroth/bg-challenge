@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using Amazon.S3;
 using Amazon.S3.Model;
@@ -18,6 +19,7 @@ public class JobProcessingService(
     : BackgroundService
 {
     private readonly string _workerSalt = Random.Shared.Next().ToString("x8");
+    private readonly ConcurrentDictionary<Guid, CancellationTokenSource> _runningJobs = new();
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -28,8 +30,11 @@ public class JobProcessingService(
         await ProcessAvailableJobs(stoppingToken);
 
         await using var connection = await dataSource.OpenConnectionAsync(stoppingToken);
-        await using var listenCommand = new NpgsqlCommand("LISTEN jobs_channel", connection);
-        await listenCommand.ExecuteNonQueryAsync(stoppingToken);
+        await using var jobsListenCommand = new NpgsqlCommand("LISTEN jobs_channel", connection);
+        await jobsListenCommand.ExecuteNonQueryAsync(stoppingToken);
+        
+        await using var cancelListenCommand = new NpgsqlCommand("LISTEN cancel_channel", connection);
+        await cancelListenCommand.ExecuteNonQueryAsync(stoppingToken);
 
         connection.Notification += async (sender, args) =>
         {
@@ -38,6 +43,15 @@ public class JobProcessingService(
                 logger.LogInformation("Received job notification for job ID: {JobId}", args.Payload);
                 await RescueOrphanedJobs(stoppingToken);
                 await ProcessAvailableJobs(stoppingToken);
+            }
+            else if (args.Channel == "cancel_channel")
+            {
+                if (Guid.TryParse(args.Payload, out var jobId) && 
+                    _runningJobs.TryGetValue(jobId, out var cts))
+                {
+                    logger.LogInformation("Received cancel notification for job {JobId}", jobId);
+                    cts.Cancel();
+                }
             }
         };
 
@@ -105,12 +119,23 @@ public class JobProcessingService(
                 break;
             }
 
+            var jobCts = new CancellationTokenSource();
+            var combinedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, jobCts.Token);
+            _runningJobs[jobClaim.Job.JobId] = jobCts;
+
             try
             {
-                await ProcessJob(jobClaim, cancellationToken);
+                await ProcessJob(jobClaim, combinedCts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                await MarkJobCanceled(jobClaim, combinedCts.Token);
             }
             finally
             {
+                _runningJobs.TryRemove(jobClaim.Job.JobId, out _);
+                jobCts.Dispose();
+                combinedCts.Dispose();
                 await jobClaim.Connection.DisposeAsync();
             }
         }
@@ -179,7 +204,14 @@ public class JobProcessingService(
         {
             logger.LogInformation("Processing job {JobId}", jobClaim.Job.JobId);
 
-            // Add delay to simulate processing time
+            // Check if cancel was requested before we started processing
+            if (jobClaim.Job.IsCancelRequested)
+            {
+                logger.LogInformation("Job {JobId} was canceled before processing started", jobClaim.Job.JobId);
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+
+            // Add delay to simulate processing time (with cancellation support)
             await Task.Delay(5000, cancellationToken);
 
             var (isValid, error) = await ImageValidation.ValidateImageAsync(jobClaim.Job.ImgUrl, httpClient, cancellationToken);
@@ -190,10 +222,18 @@ public class JobProcessingService(
                 return;
             }
 
+            // Check for cancellation before expensive S3 operation
+            cancellationToken.ThrowIfCancellationRequested();
+
             await DownloadAndUploadToS3(jobClaim.Job, cancellationToken);
             await CompleteJob(jobClaim, JobStatus.Completed, cancellationToken);
 
             logger.LogInformation("Successfully processed job {JobId}", jobClaim.Job.JobId);
+        }
+        catch (OperationCanceledException)
+        {
+            logger.LogInformation("Job {JobId} was canceled during processing", jobClaim.Job.JobId);
+            throw; // Re-throw to be handled by the caller
         }
         catch (Exception ex)
         {
@@ -240,6 +280,49 @@ public class JobProcessingService(
         catch (Exception ex)
         {
             logger.LogError(ex, "Error completing job {JobId} with status {Status}", jobClaim.Job.JobId, finalStatus);
+            throw;
+        }
+    }
+
+    private async Task MarkJobCanceled(JobClaim jobClaim, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var transaction = await jobClaim.Connection.BeginTransactionAsync(cancellationToken);
+
+            const string cancelSql = """
+                                   UPDATE "Jobs"
+                                   SET "Status" = 'Canceled',
+                                       "UpdatedAt" = @updatedAt,
+                                       "LockKey" = NULL
+                                   WHERE "JobId" = @jobId AND "ResultFile" = @resultFile
+                                   """;
+
+            await jobClaim.Connection.ExecuteAsync(cancelSql, new
+            {
+                jobId = jobClaim.Job.JobId,
+                resultFile = jobClaim.Job.ResultFile,
+                updatedAt = Stopwatch.GetTimestamp()
+            }, transaction);
+
+            // Release advisory lock if we have one
+            if (jobClaim.Job.LockKey.HasValue)
+            {
+                var unlockSql = "SELECT pg_advisory_unlock(@lockKey)";
+                await jobClaim.Connection.ExecuteAsync(unlockSql, new { lockKey = jobClaim.Job.LockKey.Value }, transaction);
+                logger.LogInformation("Released advisory lock {LockKey} for canceled job {JobId}", jobClaim.Job.LockKey, jobClaim.Job.JobId);
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+
+            jobClaim.Job.SetStatus(JobStatus.Canceled);
+            jobClaim.Job.SetLockKey(null);
+            
+            logger.LogInformation("Marked job {JobId} as canceled", jobClaim.Job.JobId);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error marking job {JobId} as canceled", jobClaim.Job.JobId);
             throw;
         }
     }

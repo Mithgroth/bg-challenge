@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Api.Common;
+using Api.Features.Cancel;
 using Api.Features.Enqueue;
 using Api.Features.List;
 using Microsoft.EntityFrameworkCore;
@@ -27,6 +28,7 @@ if (app.Environment.IsDevelopment())
 
 app.MapEnqueueEndpoint();
 app.MapListEndpoint();
+app.MapCancelEndpoint();
 
 app.Run();
 

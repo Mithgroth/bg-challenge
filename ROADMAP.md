@@ -165,7 +165,7 @@
 
 ---
 
-### **Step 4 – `/results/list` + Delta**
+### **Step 4 – `/results/list` + Delta** ✅
 
 1. **Tests** (`List`)  
    * `Returns304WhenUnchanged`  
@@ -177,7 +177,7 @@
 
 ---
 
-### **Step 5 – `/results/{id}/cancel`**
+### **Step 5 – `/results/{id}/cancel`** ✅
 
 1. **Tests** (`Cancel`)  
    * `CanCancelQueuedItem`  

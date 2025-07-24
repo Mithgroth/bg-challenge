@@ -13,6 +13,7 @@ public class Job
     public long CreatedAt { get; private set; }
     public long UpdatedAt { get; private set; }
     public long? LockKey { get; private set; }
+    public long? CanceledAt { get; private set; }
 
     // Parameterless constructor for EF
     private Job()
@@ -74,9 +75,24 @@ public class Job
         UpdatedAt = Stopwatch.GetTimestamp();
     }
 
+    public void RequestCancel()
+    {
+        CanceledAt = Stopwatch.GetTimestamp();
+        UpdatedAt = Stopwatch.GetTimestamp();
+    }
+
+    public void Cancel()
+    {
+        Status = JobStatus.Canceled;
+        CanceledAt = Stopwatch.GetTimestamp();
+        UpdatedAt = Stopwatch.GetTimestamp();
+    }
+
+    public bool IsCancelRequested => CanceledAt.HasValue;
+
     public long? GetDurationMs()
     {
-        if (Status == JobStatus.Completed || Status == JobStatus.Failed)
+        if (Status == JobStatus.Completed || Status == JobStatus.Failed || Status == JobStatus.Canceled)
         {
             var duration = UpdatedAt - CreatedAt;
             return (long)(duration / (double)Stopwatch.Frequency * 1000);
