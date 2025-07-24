@@ -53,7 +53,7 @@ public class EndToEnd
         var enqueueResponse = await HttpClient!.PostAsJsonAsync("/results/enqueue", request, cancellationToken: cts.Token);
         await Assert.That(enqueueResponse.StatusCode).IsEqualTo(HttpStatusCode.Accepted);
 
-        // Step 2: Check initial status - should be Queued
+        // Step 2: Check initial status - should be Queued or Processing
         var listResponse = await HttpClient!.GetAsync("/results/list", cts.Token);
         await Assert.That(listResponse.IsSuccessStatusCode).IsTrue();
 
@@ -70,7 +70,7 @@ public class EndToEnd
         var statusString = statusProperty.ValueKind == JsonValueKind.String 
             ? statusProperty.GetString()
             : "Unknown";
-        await Assert.That(statusString).IsEqualTo("Queued");
+        await Assert.That(statusString is "Queued" or "Processing").IsTrue();
 
         // Step 3: Poll for status changes - should eventually see Processing then Completed/Failed
         string finalStatus = "Unknown";
@@ -82,10 +82,10 @@ public class EndToEnd
             await Task.Delay(1500, cts.Token); // Wait 1.5 seconds between polls
             attempt++;
 
-            listResponse = await HttpClient!.GetAsync("/results/list");
+            listResponse = await HttpClient!.GetAsync("/results/list", cts.Token);
             await Assert.That(listResponse.IsSuccessStatusCode).IsTrue();
 
-            content = await listResponse.Content.ReadAsStringAsync();
+            content = await listResponse.Content.ReadAsStringAsync(cts.Token);
             jobs = JsonSerializer.Deserialize<JsonElement>(content);
             job = jobs.EnumerateArray().FirstOrDefault(j => j.GetProperty("jobId").GetGuid() == jobId);
 

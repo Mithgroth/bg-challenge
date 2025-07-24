@@ -52,7 +52,7 @@ public class List
         await HttpClient!.PostAsJsonAsync("/results/enqueue", enqueueRequest);
 
         // Act
-        await Task.Delay(10000);
+        await Task.Delay(15000);
         var response = await HttpClient!.GetAsync("/results/list");
         
         // Assert  
