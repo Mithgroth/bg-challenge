@@ -2,6 +2,28 @@
 
 **🎥 VIDEO EXPLANATION: [https://youtu.be/vx0nGvq1b-Y](https://youtu.be/vx0nGvq1b-Y)**
 
+- [BG Backend Challenge](#bg-backend-challenge)
+  - [Prerequisites](#prerequisites)
+    - [Quickstart](#quickstart)
+    - [Running Tests](#running-tests)
+  - [Decisions \& Tradeoffs](#decisions--tradeoffs)
+  - [Overview](#overview)
+    - [Technology Stack](#technology-stack)
+    - [Project Structure](#project-structure)
+    - [API Reference](#api-reference)
+      - [Enqueue Job](#enqueue-job)
+      - [List Jobs](#list-jobs)
+      - [Cancel Job](#cancel-job)
+    - [Job Status Flow](#job-status-flow)
+    - [Testing Approach](#testing-approach)
+      - [Unit Tests](#unit-tests)
+      - [Integration Tests](#integration-tests)
+      - [Test Conventions](#test-conventions)
+  - [Potential Improvements](#potential-improvements)
+    - [Production Readiness](#production-readiness)
+    - [Feature Enhancements](#feature-enhancements)
+    - [Developer Experience](#developer-experience)
+
 This project implements a job queue system where users can submit image processing jobs via REST API. Aside from the original challenge, the author also imposed some self-defined constraints:
 
 * **Aspire**: The goal of using .NET Aspire 9.3 is to setup everything locally, so reviewer can have an easy time and run the entire system with a single F5.
