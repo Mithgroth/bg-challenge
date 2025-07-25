@@ -257,6 +257,7 @@ The project uses a comprehensive testing strategy with both unit and integration
 * **Job Scheduling**: Add delayed execution and cron-like scheduling
 * **Result Storage**: Implement configurable storage backends (S3, Azure Blob)
 * **Lock Improvements**: Add a time threshold for checking locks on "Queued" jobs to avoid having to process many jobs after a long downtime (*been there once, wasn't a pleasant day*).
+* **Implement HTTP 304**: Implement [Delta](https://github.com/SimonCropp/Delta) with DB change tracking to improve response times
 
 ### Developer Experience
 
