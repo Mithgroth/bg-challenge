@@ -80,6 +80,7 @@ dotnet test tests/Integration/
 
 * API & Responsibilities
   * API only validates input and persists the job. Worker does the actual work.
+  * About "*Take into account that there may be more than one result per job, but each enqueue request may only contain one result at a time*" requirement in the spec, `Enqueue` has a parameter to a singular `Request` object, so an array cannot be bound to this endpoint by ASP.NET's design.
   * If it were my call, I would keep the `Enqueue` request open and pass a `CancellationToken` to support cancellation (*the usual .NET way*). The spec forced an async 202 flow with a separate cancel endpoint, so we: set `CancelRequested` (or mark `Canceled` if still queued), send a `NOTIFY`, and the worker stops itself using its own token.
   * Minimal APIs bind a single object. Arrays would not match the parameter, so enqueue stays singular.
   * [`SignHere`](https://github.com/Mithgroth/SignHere) (*my lib*) helper lib was used to validate image files by their magic bytes. As a developer, I'm terrified at the idea of trusting `Content-Type` header in public internet.
