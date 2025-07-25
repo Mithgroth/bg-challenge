@@ -11,6 +11,8 @@
   <Folder Name="/SolutionFolder/">
     <File Path="test-api.http" />
     <File Path="README.md" />
+    <File Path="assets\tests.png" />
+    <File Path="assets\first_run_api_warning.png" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Api/Api.csproj" />
